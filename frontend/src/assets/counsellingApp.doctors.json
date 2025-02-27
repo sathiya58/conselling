@@ -1,0 +1,8 @@
+[{
+  "_id": {
+    "$oid": "67bb586ab8d2451bc43b8a7e"
+  },
+  "name": "Dr. Richard James",
+  "speciality": "General physician",
+  "degree": "MBBS"
+}]

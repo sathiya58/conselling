@@ -1,134 +1,136 @@
-import { createContext, useState } from "react";
-import axios from 'axios'
-import { toast } from 'react-toastify'
+import { createContext, useState, useEffect } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
 
+export const DoctorContext = createContext();
 
-export const DoctorContext = createContext()
+const DoctorContextProvider = ({ children }) => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
-const DoctorContextProvider = (props) => {
+    const [dToken, setDToken] = useState(localStorage.getItem("dToken") || "");
+    const [appointments, setAppointments] = useState([]);
+    const [dashData, setDashData] = useState(null);
+    const [profileData, setProfileData] = useState(null);
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL
+    // Handle 401 errors (logout user)
+    const handleUnauthorized = () => {
+        toast.error("Session expired. Please log in again.");
+        localStorage.removeItem("dToken");
+        setDToken("");
+    };
 
-    const [dToken, setDToken] = useState(localStorage.getItem('dToken') ? localStorage.getItem('dToken') : '')
-    const [appointments, setAppointments] = useState([])
-    const [dashData, setDashData] = useState(false)
-    const [profileData, setProfileData] = useState(false)
+    // Axios instance with headers
+    const axiosInstance = axios.create({
+        baseURL: backendUrl,
+        headers: {
+            Authorization: dToken ? `Bearer ${dToken}` : "",
+        },
+    });
 
-    // Getting Doctor appointment data from Database using API
+    // Fetch doctor appointments
     const getAppointments = async () => {
+        if (!dToken) return;
         try {
-
-            const { data } = await axios.get(backendUrl + '/api/doctor/appointments', { headers: { dToken } })
+            const { data } = await axiosInstance.get("/api/doctor/appointments");
 
             if (data.success) {
-                setAppointments(data.appointments.reverse())
+                setAppointments(data.appointments.reverse());
             } else {
-                toast.error(data.message)
+                toast.error(data.message);
             }
-
         } catch (error) {
-            console.log(error)
-            toast.error(error.message)
+            console.error("Appointments fetch error:", error);
+            if (error.response?.status === 401) handleUnauthorized();
         }
-    }
+    };
 
-    // Getting Doctor profile data from Database using API
+    // Fetch doctor profile
     const getProfileData = async () => {
+        if (!dToken) return;
         try {
-
-            const { data } = await axios.get(backendUrl + '/api/doctor/profile', { headers: { dToken } })
-            console.log(data.profileData)
-            setProfileData(data.profileData)
-
+            const { data } = await axiosInstance.get("/api/doctor/profile");
+            setProfileData(data.profileData);
         } catch (error) {
-            console.log(error)
-            toast.error(error.message)
+            console.error("Profile fetch error:", error);
+            if (error.response?.status === 401) handleUnauthorized();
         }
-    }
+    };
 
-    // Function to cancel doctor appointment using API
-    const cancelAppointment = async (appointmentId) => {
-
-        try {
-
-            const { data } = await axios.post(backendUrl + '/api/doctor/cancel-appointment', { appointmentId }, { headers: { dToken } })
-
-            if (data.success) {
-                toast.success(data.message)
-                getAppointments()
-                // after creating dashboard
-                getDashData()
-            } else {
-                toast.error(data.message)
-            }
-
-        } catch (error) {
-            toast.error(error.message)
-            console.log(error)
-        }
-
-    }
-
-    // Function to Mark appointment completed using API
-    const completeAppointment = async (appointmentId) => {
-
-        try {
-
-            const { data } = await axios.post(backendUrl + '/api/doctor/complete-appointment', { appointmentId }, { headers: { dToken } })
-
-            if (data.success) {
-                toast.success(data.message)
-                getAppointments()
-                // Later after creating getDashData Function
-                getDashData()
-            } else {
-                toast.error(data.message)
-            }
-
-        } catch (error) {
-            toast.error(error.message)
-            console.log(error)
-        }
-
-    }
-
-    // Getting Doctor dashboard data using API
+    // Fetch doctor dashboard data
     const getDashData = async () => {
+        if (!dToken) return;
         try {
-
-            const { data } = await axios.get(backendUrl + '/api/doctor/dashboard', { headers: { dToken } })
+            const { data } = await axiosInstance.get("/api/doctor/dashboard");
 
             if (data.success) {
-                setDashData(data.dashData)
+                setDashData(data.dashData);
             } else {
-                toast.error(data.message)
+                toast.error(data.message);
             }
-
         } catch (error) {
-            console.log(error)
-            toast.error(error.message)
+            console.error("Dashboard fetch error:", error);
+            if (error.response?.status === 401) handleUnauthorized();
         }
+    };
 
-    }
+    // Cancel an appointment
+    const cancelAppointment = async (appointmentId) => {
+        if (!dToken) return;
+        try {
+            const { data } = await axiosInstance.post("/api/doctor/cancel-appointment", { appointmentId });
+
+            if (data.success) {
+                toast.success(data.message);
+                getAppointments();
+                getDashData();
+            } else {
+                toast.error(data.message);
+            }
+        } catch (error) {
+            console.error("Cancel appointment error:", error);
+            if (error.response?.status === 401) handleUnauthorized();
+        }
+    };
+
+    // Mark appointment as completed
+    const completeAppointment = async (appointmentId) => {
+        if (!dToken) return;
+        try {
+            const { data } = await axiosInstance.post("/api/doctor/complete-appointment", { appointmentId });
+
+            if (data.success) {
+                toast.success(data.message);
+                getAppointments();
+                getDashData();
+            } else {
+                toast.error(data.message);
+            }
+        } catch (error) {
+            console.error("Complete appointment error:", error);
+            if (error.response?.status === 401) handleUnauthorized();
+        }
+    };
+
+    // Auto-fetch data on mount
+    useEffect(() => {
+        getAppointments();
+        getProfileData();
+        getDashData();
+    }, [dToken]);
 
     const value = {
         dToken, setDToken, backendUrl,
-        appointments,
-        getAppointments,
-        cancelAppointment,
-        completeAppointment,
+        appointments, getAppointments,
+        cancelAppointment, completeAppointment,
         dashData, getDashData,
-        profileData, setProfileData,
-        getProfileData,
-    }
+        profileData, getProfileData,
+    };
 
     return (
         <DoctorContext.Provider value={value}>
-            {props.children}
+            {children}
         </DoctorContext.Provider>
-    )
+    );
+};
 
-
-}
-
-export default DoctorContextProvider
+export default DoctorContextProvider;
